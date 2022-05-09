@@ -25,6 +25,15 @@
  * @copyright GNU GPL v3
  * */
 
+//we use the following for telling to the compiler to include some extra-functions that are defined in the
+//XOpen and POSIX standards
+//(it works without it, but vscode doesn't recognize some things defined in timer.h and signal.h)
+#if __STDC_VERSION__ >= 199901L
+#define _XOPEN_SOURCE 600
+#else
+#define _XOPEN_SOURCE 500
+#endif
+
 #include <argp.h>
 #include <errno.h>
 #include <pthread.h>
@@ -57,11 +66,17 @@ typedef struct {
   int args[1];
   int verbose;
   int tick;
-} arguments_t:
+} arguments_t;
 
 void errno_abort(char *message) {
   perror(message);
   exit(EXIT_FAILURE);
+}
+
+int err_abort(int status, char *message) {
+  fprintf(stderr, "%s\n", message);
+  exit(status);
+  return 0;
 }
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
@@ -143,7 +158,7 @@ void create_timer(int tick) {
 }
 
 void statemachine_callback(void) {
-  my_states_data **cur_data = states_get_data();
+  my_states_data *cur_data = states_get_data();
 
   int diff = cur_data->cur_val - cur_data->prev_val;
 
@@ -175,12 +190,12 @@ int main(int argc, char **argv) {
          arguments.verbose ? "yes" : "no", arguments.tick);
 
   /** Initialize state machine */
-  states_add(state_probe, state_two_enter, state_two_run, state_two_ext,
+  states_add(state_probe, NULL, state_one_run, NULL, state_first_e,
+             FIRST_STATE_NAME);
+  states_add(state_probe, state_two_enter, state_two_run, state_two_exit,
              state_second_e, SECOND_STATE_NAME);
   states_add(state_probe, NULL, state_three_run, NULL, state_third_e,
              THIRD_STATE_NAME);
-  states_add(state_probe, NULL, state_one_run, NULL, state_first_e,
-             FIRST_STATE_NAME);
 
   states_set_callback(statemachine_callback);
 
@@ -192,7 +207,7 @@ int main(int argc, char **argv) {
   create_timer(arguments.tick);
 
   error = pthread_mutex_lock(&mutex);
-  if (error = 0)
+  if (error != 0)
     err_abort(error, "Lock mutex");
 
   while (count < count_to) {
@@ -209,11 +224,7 @@ int main(int argc, char **argv) {
 
   printf("Finshed\n");
 
-  return;
+  return 0; //we return 0 if the code executed well, which is the case here
 }
 
-void err_abort(int status, char *message) {
-  fprintf(stderr, "%s\n", message);
-  exit(status);
-  return 0;
-}
+
